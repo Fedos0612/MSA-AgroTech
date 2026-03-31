@@ -1,0 +1,249 @@
+@startuml Архитектура_АгроТех_Системы_C4
+
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+package "Сервер-агент" {
+
+  package "Видеомониторинг скота" {
+    class "Прием видео потоков" as video_recording {
+      +получитьПоток(cameraId: String)
+      +проверитьСоединение(cameraId: String)
+      +закрытьСессию(cameraId: String)
+    }
+  }
+
+  package "Датчики оборудования на фермах" {
+    class "Унификация данных с кормушек" as feeders_data {
+      +получитьТелеметрию()
+      +нормализоватьДанные()
+    }
+
+    class "Унификация данных с поилок" as drinkers_data {
+      +получитьТелеметрию()
+      +нормализоватьДанные()
+    }
+
+    class "Система фильтрации воды" as water {
+      +получитьСигнал()
+      +получитьСостояние()
+    }
+
+    class "Система управления запасами еды" as feed_stock {
+      +получитьОстатки()
+      +сформироватьСигнал()
+    }
+
+    class "SCADA система" as scada {
+      +обновитьСостояниеОборудования()
+      +экспортироватьТелеметрию()
+      +сохранитьЛокальныеРяды()
+    }
+  }
+
+  package "Уведомление персонала на местах" {
+    class "Интерфейс мониторинга инцидентов" as notification_ui {
+      +показатьИнцидент()
+      +обновитьСтатус()
+      +войти()
+    }
+  }
+
+  package "IoT платформа" {
+    class "IoT шлюз" as iot_gateway {
+      +маршрутизироватьТелеметрию()
+      +передатьВидеоВЦентр()
+      +передатьСобытияВKafka()
+    }
+
+    class "База временных рядов" as tsdb {
+      +записатьРяд()
+      +прочитатьИсторию()
+    }
+
+    class "Локальный буфер событий" as local_buffer {
+      +сохранитьСобытие()
+      +прочитатьНакопленные()
+      +очиститьОтправленные()
+    }
+
+    class "Менеджер синхронизации" as sync_manager {
+      +прочитатьБуфер()
+      +повторноОтправить()
+      +подтвердитьДоставку()
+    }
+  }
+
+  package "Локальный сервис восстановления" {
+    class "Локальный сервис восстановления" as local_recovery {
+      +проверитьСервис(serviceName: String)
+      +перезапустить(serviceName: String)
+      +проверитьДоступность()
+    }
+  }
+
+  class "Телеметрия" as TelemetryEvent {
+    +тип: String
+    +время: DateTime
+    +payload: String
+  }
+
+  class "Видеопоток" as VideoStream {
+    +cameraId: String
+    +timestamp: DateTime
+    +payload: Binary
+  }
+}
+
+package "Центральный сервер" {
+
+  package "Видеомониторинг скота" {
+    class "Обработка видео" as video_adapter {
+      +подключитьИсточник()
+      +преобразоватьФормат()
+      +нормализоватьКадры()
+    }
+  }
+
+  package "ИИ сервис" {
+    class "CV model" as cv_model {
+      +выполнитьInference()
+      +сформироватьИнцидент()
+      +публиковатьМетрики()
+    }
+
+    class "Инцидент" as Incident {
+      +тип: String
+      +время: DateTime
+      +критичность: String
+      +источник: String
+    }
+  }
+
+  package "Сервис авторизации" {
+    class "Сервис авторизации" as auth_service {
+      +аутентифицировать()
+      +выдатьТокен()
+      +валидироватьТокен()
+    }
+  }
+
+  package "API Gateway" {
+    class "API Gateway" as api_gateway {
+      +получитьИнциденты()
+      +получитьМетрики()
+      +получитьПрогноз()
+    }
+  }
+
+  package "Брокер сообщений" {
+    class "Брокер сообщений" as kafka {
+      +принятьСообщение()
+      +прочитатьСообщения()
+    }
+  }
+
+  package "Аналитический модуль" {
+    class "Аналитический модуль" as analytics {
+      +агрегироватьИнциденты()
+      +рассчитатьKPI()
+      +подготовитьЭкспорт()
+    }
+  }
+
+  package "Сервис прогнозирования расхода еды" {
+    class "Сервис прогнозирования расхода еды" as forecast_service {
+      +спрогнозироватьРасход()
+      +оценитьРискИсчерпания()
+      +подготовитьПрогноз()
+    }
+
+    class "Прогноз" as Forecast {
+      +дата: Date
+      +объем: Float
+      +рискИсчерпания: String
+    }
+  }
+
+  package "BI система" {
+    class "BI система" as bi {
+      +сформироватьОтчет()
+      +обновитьДашборд()
+    }
+  }
+
+  package "Data Lake" {
+    class "Data Lake" as data_lake {
+      +сохранитьRaw()
+      +прочитатьRaw()
+    }
+  }
+
+  package "Data Warehouse" {
+    class "Data Warehouse" as dwh {
+      +записатьФакт()
+      +прочитатьФакты()
+      +прочитатьСправочники()
+    }
+  }
+
+  package "Сервис мониторинга и отказоустойчивости" {
+    class "Сервис мониторинга и отказоустойчивости" as ha_service {
+      +собратьМетрики()
+      +проверитьДоступность()
+      +отправитьОповещение()
+    }
+  }
+}
+
+video_recording --> VideoStream : формирует
+VideoStream --> iot_gateway : передает видеоданные
+iot_gateway --> local_buffer : буферизация offline
+local_buffer --> sync_manager : чтение накопленных данных
+sync_manager --> kafka : повторная отправка
+iot_gateway --> kafka : телеметрия и события
+iot_gateway --> video_adapter : передает видеоданные в центр
+
+feeders_data --> scada : нормализованные данные
+drinkers_data --> scada : нормализованные данные
+water --> scada : сигналы
+feed_stock --> scada : сигналы
+scada --> tsdb : временные ряды
+scada --> iot_gateway : данные оборудования
+
+video_adapter --> cv_model : передача видео-данных
+cv_model --> Incident : формирует
+cv_model --> kafka : события и метрики
+cv_model --> notification_ui : WebSocket
+
+notification_ui --> auth_service : авторизация
+api_gateway --> auth_service : проверка токена
+
+kafka --> data_lake : сырые данные
+kafka --> dwh : трансформированные данные
+dwh --> analytics : структурированные данные
+dwh --> forecast_service : история расхода и остатков
+forecast_service --> Forecast : строит
+forecast_service --> analytics : прогнозы и аномалии
+analytics --> api_gateway : метрики и инциденты
+forecast_service --> api_gateway : прогнозы расхода еды
+analytics --> bi : отчеты
+forecast_service --> bi : прогнозные показатели
+
+local_recovery --> video_recording : контроль и перезапуск
+local_recovery --> iot_gateway : контроль и перезапуск
+local_recovery --> notification_ui : контроль интерфейса
+local_recovery --> sync_manager : контроль синхронизации
+
+ha_service --> kafka : мониторинг
+ha_service --> data_lake : мониторинг
+ha_service --> dwh : мониторинг
+ha_service --> api_gateway : мониторинг
+ha_service --> analytics : мониторинг
+ha_service --> auth_service : мониторинг
+ha_service --> video_adapter : мониторинг
+ha_service --> cv_model : мониторинг
+
+@enduml

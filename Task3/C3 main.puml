@@ -1,0 +1,199 @@
+@startuml Архитектура_АгроТех_Системы_C3
+
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+
+Person(operator, "Дежурный сотрудник", "Мониторинг данных")
+
+System_Boundary(platform, "АгроПром Х - Цифровая платформа мониторинга скота") {
+
+    Boundary(agent_server, "Сервер-агент") {
+
+        Container_Boundary(video_monitoring, "Видеомониторинг скота") {
+            Container_Boundary(video_recording, "Прием видео потоков") {
+                Component(video_recording_receiver, "Приемник видеопотоков", "Python", "Принимает видеопотоки с камер")
+                Component(video_recording_monitor, "Мониторинг потока", "Python", "Контролирует доступность и параметры потока")
+            }
+
+            Container_Boundary(video_adapter, "Обработка видео") {
+                Component(video_adapter_protocols, "Адаптер протоколов", "C#", "Поддерживает разные форматы и протоколы камер")
+                Component(video_adapter_normalizer, "Нормализатор видео", "C#", "Приводит видеопоток к единому формату")
+            }
+        }
+
+        Container_Boundary(sensors, "Датчики оборудования на фермах") {
+            Container_Boundary(feeders_data, "Унификация данных с кормушек") {
+                Component(feeders_data_input, "Прием телеметрии", "Python", "Получает телеметрию и статусы кормушек")
+                Component(feeders_data_normalizer, "Нормализатор данных", "Python", "Приводит данные к единому формату")
+            }
+
+            Container_Boundary(drinkers_data, "Унификация данных с поилок") {
+                Component(drinkers_data_input, "Прием телеметрии", "Python", "Получает телеметрию и статусы поилок")
+                Component(drinkers_data_normalizer, "Нормализатор данных", "Python", "Приводит данные к единому формату")
+            }
+
+            Container_Boundary(water_system, "Система фильтрации воды") {
+                Component(water_signals, "Сбор сигналов", "Python", "Получает сигналы фильтрации воды")
+                Component(water_state, "Контроль состояния", "Python", "Проверяет состояние системы фильтрации")
+            }
+
+            Container_Boundary(feed_stock, "Система управления запасами еды") {
+                Component(feed_stock_accounting, "Учет остатков", "C#", "Отслеживает остатки корма")
+                Component(feed_stock_signals, "Формирование сигналов", "C#", "Формирует сигналы о критических остатках")
+            }
+
+            Container_Boundary(scada_container, "SCADA система") {
+                Component(scada_orchestrator, "Оркестратор оборудования", "Ignition", "Управляет оборудованием на фермах")
+                Component(scada_export, "OPC UA шлюз", "Ignition", "Передает данные оборудования во внешние контуры")
+            }
+        }
+
+        Container_Boundary(notification_boundary, "Уведомление персонала на местах") {
+            Container_Boundary(notification_ui_container, "Интерфейс мониторинга инцидентов") {
+                Component(notification_ui_dashboard, "Дашборд инцидентов", "React", "Отображает тревоги и уведомления")
+                Component(notification_ui_auth, "Клиент авторизации", "React", "Обеспечивает вход пользователя")
+            }
+        }
+
+        Container_Boundary(iot_boundary, "IoT платформа") {
+            Container_Boundary(iot_gateway_container, "IoT шлюз") {
+                Component(iot_gateway_router, "Маршрутизатор телеметрии", "Node-RED", "Маршрутизирует телеметрию и события")
+                Component(iot_gateway_publisher, "Публикатор событий", "Node-RED", "Передает данные в Kafka")
+            }
+
+            Container_Boundary(tsdb_container, "База временных рядов") {
+                Component(tsdb_write, "Write API", "TimescaleDB", "Записывает локальные временные ряды")
+                Component(tsdb_query, "Query API", "TimescaleDB", "Читает локальную историю")
+            }
+
+            Container_Boundary(local_buffer_container, "Локальный буфер событий") {
+                Component(local_buffer_store, "Буфер событий", "SQLite / Redis", "Хранит события и метрики при отсутствии связи")
+            }
+
+            Container_Boundary(sync_manager_container, "Менеджер синхронизации") {
+                Component(sync_manager_reader, "Читатель буфера", "Python / Node-RED", "Читает накопленные данные")
+                Component(sync_manager_sender, "Отправитель в Kafka", "Python / Node-RED", "Повторно передает данные после восстановления связи")
+            }
+        }
+
+        Container_Boundary(ai_boundary, "ИИ сервис") {
+            Container_Boundary(cv_model_container, "CV model") {
+                Component(cv_model_input, "Прием кадров", "Python", "Принимает нормализованные кадры")
+                Component(cv_model_inference, "Inference Engine", "Python / PyTorch", "Выполняет inference модели")
+                Component(cv_model_events, "Диспетчер инцидентов", "Python", "Формирует тревоги, события и метрики")
+            }
+        }
+
+        Container_Boundary(local_recovery_container, "Локальный сервис восстановления") {
+            Component(local_recovery_monitor, "Монитор процессов", "systemd / supervisor", "Следит за состоянием сервисов")
+            Component(local_recovery_restart, "Политика перезапуска", "systemd / supervisor", "Перезапускает сервисы при сбоях")
+        }
+    }
+
+    Boundary(central_server, "Центральный сервер") {
+
+        Container_Boundary(auth_container, "Сервис авторизации") {
+            Component(auth_identity, "Identity Provider", "OAuth 2.0 / OIDC", "Аутентифицирует пользователей")
+            Component(auth_tokens, "Token Service", "OAuth 2.0", "Выдает и валидирует токены")
+        }
+
+        Container_Boundary(api_container, "API Gateway") {
+            Component(api_auth, "Auth Middleware", "REST / HTTPS", "Проверяет токены и права доступа")
+            Component(api_monitoring, "Monitoring API", "REST / HTTPS", "Отдает данные мониторинга, инцидентов и метрик")
+        }
+
+        Container_Boundary(kafka_container, "Брокер сообщений") {
+            Component(kafka_agent_events, "Топик событий агентов", "Apache Kafka", "События и метрики с ферм")
+            Component(kafka_connect, "Kafka Connect", "Kafka Connect", "Передает данные в Data Lake и DWH")
+        }
+
+        Container_Boundary(analytics_container, "Аналитический модуль") {
+            Component(analytics_incidents, "Агрегатор инцидентов", "Python", "Агрегирует инциденты по фермам")
+            Component(analytics_export, "Экспорт аналитики", "Python", "Подготавливает данные для API и BI")
+        }
+
+        Container_Boundary(forecast_container, "Сервис прогнозирования расхода еды") {
+            Component(forecast_model, "Модель прогноза", "Python", "Прогнозирует расход корма")
+            Component(forecast_export, "Экспорт прогноза", "Python", "Передает прогнозы в API и BI")
+        }
+
+        Container_Boundary(ha_container, "Сервис мониторинга и отказоустойчивости") {
+            Component(ha_services, "Мониторинг сервисов", "Prometheus", "Следит за состоянием сервисов")
+            Component(ha_alerts, "Alertmanager", "Alertmanager", "Формирует уведомления о сбоях")
+        }
+
+        Container_Boundary(bi_container, "BI система") {
+            Component(bi_reports, "Генератор отчетов", "Power BI", "Формирует отчеты и дашборды")
+        }
+
+        Container_Boundary(data_lake_container, "Data Lake") {
+            Component(data_lake_raw, "Raw Zone", "MinIO", "Хранит сырые данные и логи")
+            Component(data_lake_video, "Video Evidence Zone", "MinIO", "Хранит видеоартефакты")
+        }
+
+        Container_Boundary(dwh_container, "Data Warehouse") {
+            Component(dwh_facts, "Фактовые таблицы", "ClickHouse", "Хранят факты событий и телеметрии")
+            Component(dwh_dimensions, "Справочники", "ClickHouse", "Хранят измерения и справочники")
+        }
+    }
+
+    Rel(video_recording_receiver, video_recording_monitor, "Передает статус потока")
+    Rel(video_recording_receiver, video_adapter_protocols, "Передает данные", "gRPC")
+    Rel(video_adapter_protocols, video_adapter_normalizer, "Передает видеоданные")
+    Rel(video_adapter_normalizer, cv_model_input, "Передача видео-данных", "gRPC")
+
+    Rel(cv_model_input, cv_model_inference, "Передает кадры")
+    Rel(cv_model_inference, cv_model_events, "Передает результаты inference")
+    Rel(cv_model_events, notification_ui_dashboard, "Передает тревоги и инциденты", "WebSocket")
+    Rel(operator, notification_ui_dashboard, "Мониторинг данных", "HTTPS")
+
+    Rel(cv_model_events, iot_gateway_router, "Передает события и метрики", "MQTT")
+
+    Rel(feeders_data_input, feeders_data_normalizer, "Передает телеметрию и статусы", "Modbus TCP")
+    Rel(feeders_data_normalizer, scada_orchestrator, "Передает нормализованные данные", "Modbus TCP")
+
+    Rel(drinkers_data_input, drinkers_data_normalizer, "Передает телеметрию и статусы", "Modbus TCP")
+    Rel(drinkers_data_normalizer, scada_orchestrator, "Передает нормализованные данные", "Modbus TCP")
+
+    Rel(water_signals, water_state, "Передает сигналы")
+    Rel(water_state, scada_orchestrator, "Передача сигнала", "Modbus TCP")
+    Rel(feed_stock_signals, scada_orchestrator, "Передача сигнала", "Modbus TCP")
+
+    Rel(scada_orchestrator, tsdb_write, "Записывает локальные временные ряды", "SQL / TCP")
+    Rel(scada_export, iot_gateway_router, "Передает данные датчиков с оборудования", "OPC UA")
+    Rel(iot_gateway_router, iot_gateway_publisher, "Маршрутизирует данные")
+    Rel(iot_gateway_publisher, kafka_agent_events, "Передает данные", "Kafka Protocol")
+
+    Rel(iot_gateway_router, local_buffer_store, "Буферизует события и метрики при отсутствии связи", "Local write")
+    Rel(sync_manager_reader, local_buffer_store, "Читает накопленные данные", "SQL / Local read")
+    Rel(sync_manager_reader, sync_manager_sender, "Передает накопленные данные")
+    Rel(sync_manager_sender, kafka_agent_events, "Повторно передает данные после восстановления связи", "Kafka Protocol")
+
+    Rel(local_recovery_monitor, video_recording_monitor, "Контролирует состояние")
+    Rel(local_recovery_monitor, cv_model_events, "Контролирует состояние")
+    Rel(local_recovery_restart, iot_gateway_router, "Перезапускает при сбое")
+
+    Rel(kafka_connect, data_lake_raw, "Сырые данные", "Kafka Connect + S3")
+    Rel(kafka_connect, dwh_facts, "Трансформированные данные", "ETL + Airflow")
+
+    Rel(dwh_facts, analytics_incidents, "Предоставляет структурированные данные", "SQL")
+    Rel(dwh_dimensions, forecast_model, "Предоставляет историю расхода и остатков", "SQL")
+    Rel(analytics_incidents, analytics_export, "Передает агрегаты")
+    Rel(forecast_model, forecast_export, "Передает прогнозы")
+
+    Rel(analytics_export, api_monitoring, "Передача данных по сети интернет", "REST")
+    Rel(forecast_export, api_monitoring, "Передает прогнозы расхода еды", "REST")
+    Rel(analytics_export, bi_reports, "Передает отчеты", "ODBC")
+    Rel(forecast_export, bi_reports, "Передает прогнозные показатели", "ODBC")
+
+    Rel(notification_ui_auth, auth_identity, "Авторизация в системе", "HTTPS, OAuth 2.0, OIDC")
+    Rel(api_auth, auth_tokens, "Проверяет токены", "HTTPS")
+
+    Rel(ha_services, kafka_agent_events, "Мониторит состояние брокера и лаги")
+    Rel(ha_services, api_monitoring, "Мониторит доступность API")
+    Rel(ha_services, analytics_incidents, "Мониторит выполнение аналитических задач")
+    Rel(ha_alerts, operator, "Формирует технические оповещения")
+}
+
+@enduml

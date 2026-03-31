@@ -1,0 +1,52 @@
+@startuml SaaS_C2_Отдельные_БД
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_TOP_DOWN()
+
+Person(admin, "Администратор клиента", "Управляет аккаунтом, тарифом и API-ключами")
+System_Ext(payment_ru, "Платёжный провайдер РФ", "Платежи и подписки")
+System_Ext(client_systems, "Системы клиента", "ERP, BI, внешние интеграции")
+
+Boundary(client_edge, "Инфраструктура клиента") {
+    Container(agent, "Сервер-агент клиента", "Edge-first", "Видеомониторинг, ИИ сервис, уведомления, IoT платформа, SCADA")
+}
+
+System_Boundary(saas, "SaaS-платформа") {
+    Container(portal, "Портал самообслуживания", "Web", "Аккаунт, тариф, документация, API-ключи")
+    Container(auth_service, "Сервис авторизации", "OAuth 2.0 / OIDC", "Аутентификация и роли")
+    Container(api_gateway, "API Gateway", "REST / HTTPS", "Интеграционный API")
+    Container(tenant_router, "Сервис управления тенантами и маршрутизации", "Python", "Определяет tenant и его БД")
+    Container(usage_billing, "Usage metering и биллинг", "Python", "Usage, расчёт тарифа, биллинг")
+    Container(kafka, "Брокер сообщений", "Kafka", "События и метрики от агентов")
+    Container(аналитика, "Аналитический модуль", "Python", "Аналитика и пользовательские метрики")
+    Container(сервис_прогнозирования_расхода_еды, "Сервис прогнозирования расхода еды", "Python", "Прогноз расхода корма")
+    ContainerDb(db_a, "БД tenant_a", "PostgreSQL / ClickHouse", "Отдельная БД клиента A")
+    ContainerDb(db_b, "БД tenant_b", "PostgreSQL / ClickHouse", "Отдельная БД клиента B")
+}
+
+Rel(admin, portal, "Использует", "HTTPS")
+Rel(portal, auth_service, "Аутентификация", "OIDC")
+Rel(portal, tenant_router, "Управляет аккаунтом и тарифом", "HTTPS")
+Rel(portal, usage_billing, "Просматривает usage и счета", "HTTPS")
+
+Rel(agent, kafka, "Передает события и метрики", "HTTPS / Kafka bridge")
+Rel(client_systems, api_gateway, "Интеграция", "HTTPS")
+
+Rel(api_gateway, auth_service, "Проверяет токены", "HTTPS")
+Rel(api_gateway, tenant_router, "Определяет tenant и БД", "Internal API")
+
+Rel(kafka, tenant_router, "Маршрутизация tenant-данных", "Internal API")
+Rel(tenant_router, db_a, "Данные tenant_a", "SQL")
+Rel(tenant_router, db_b, "Данные tenant_b", "SQL")
+
+Rel(db_a, аналитика, "Данные tenant_a", "SQL")
+Rel(db_b, аналитика, "Данные tenant_b", "SQL")
+Rel(db_a, сервис_прогнозирования_расхода_еды, "История расхода tenant_a", "SQL")
+Rel(db_b, сервис_прогнозирования_расхода_еды, "История расхода tenant_b", "SQL")
+
+Rel(аналитика, api_gateway, "Инциденты и метрики", "REST")
+Rel(сервис_прогнозирования_расхода_еды, api_gateway, "Прогнозы", "REST")
+
+Rel(usage_billing, db_a, "Читает usage tenant_a", "SQL")
+Rel(usage_billing, db_b, "Читает usage tenant_b", "SQL")
+Rel(usage_billing, payment_ru, "Создает платежи и подписки", "HTTPS")
+@enduml

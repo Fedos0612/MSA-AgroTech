@@ -1,0 +1,35 @@
+@startuml SaaS_C2_Integration_Example
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_TOP_DOWN()
+
+Person(admin, "Администратор АгроТех Х", "Управляет аккаунтом и интеграцией")
+System_Ext(erp, "Системы головного офиса АгроТех Х", "ERP, BI, внутренняя аналитика")
+
+Boundary(client_company, "АгроТех Х как клиент SaaS") {
+    Boundary(farm_1, "Ферма 1") {
+        Container(agent_1, "Сервер-агент фермы 1", "Edge-first", "Видео, ИИ, IoT, SCADA, локальные уведомления")
+    }
+    Boundary(farm_2, "Ферма 2") {
+        Container(agent_2, "Сервер-агент фермы 2", "Edge-first", "Видео, ИИ, IoT, SCADA, локальные уведомления")
+    }
+}
+
+System_Boundary(saas, "SaaS-платформа") {
+    Container(portal, "Портал самообслуживания", "Web", "Аккаунт, тариф, API-ключи")
+    Container(api_gateway, "API Gateway", "REST / HTTPS", "Клиентский API")
+    Container(kafka, "Брокер сообщений", "Kafka", "События и метрики от агентов")
+    Container(аналитика, "Аналитический модуль", "Python", "Аналитика клиента")
+    Container(сервис_прогнозирования_расхода_еды, "Сервис прогнозирования расхода еды", "Python", "Прогноз расхода корма")
+    ContainerDb(tenant_dwh, "Tenant Data Warehouse", "PostgreSQL / ClickHouse", "Схема tenant_agrotech_x")
+}
+
+Rel(admin, portal, "Использует", "HTTPS")
+Rel(agent_1, kafka, "Передает события и метрики", "HTTPS / Kafka bridge")
+Rel(agent_2, kafka, "Передает события и метрики", "HTTPS / Kafka bridge")
+Rel(kafka, tenant_dwh, "Пишет данные tenant_agrotech_x", "ETL")
+Rel(tenant_dwh, аналитика, "Структурированные данные", "SQL")
+Rel(tenant_dwh, сервис_прогнозирования_расхода_еды, "История расхода и остатков", "SQL")
+Rel(аналитика, api_gateway, "Инциденты и метрики", "REST")
+Rel(сервис_прогнозирования_расхода_еды, api_gateway, "Прогнозы", "REST")
+Rel(erp, api_gateway, "Читает данные и прогнозы", "HTTPS")
+@enduml

@@ -1,0 +1,46 @@
+@startuml SaaS_C2_Отдельные_Инстансы
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_TOP_DOWN()
+
+Person(admin, "Администратор клиента", "Управляет аккаунтом, тарифом и API-ключами")
+System_Ext(payment_ru, "Платёжный провайдер РФ", "Платежи и подписки")
+System_Ext(client_systems, "Системы клиента", "ERP, BI, внешние интеграции")
+
+Boundary(client_edge, "Инфраструктура клиента") {
+    Container(agent, "Сервер-агент клиента", "Edge-first", "Видеомониторинг, ИИ сервис, уведомления, IoT платформа, SCADA")
+}
+
+System_Boundary(control_plane, "Control Plane SaaS") {
+    Container(portal, "Портал самообслуживания", "Web", "Регистрация, документация, аккаунт")
+    Container(auth_service, "Сервис авторизации", "OAuth 2.0 / OIDC", "Аутентификация и роли")
+    Container(tenant_mgmt, "Сервис управления тенантами и тарифами", "Python", "Provisioning tenant instance")
+    Container(usage_billing, "Usage metering и биллинг", "Python", "Usage, расчёт тарифа, биллинг")
+}
+
+System_Boundary(tenant_instance, "Выделенный инстанс клиента") {
+    Container(api_gateway, "API Gateway", "REST / HTTPS", "Интеграционный API клиента")
+    Container(kafka, "Брокер сообщений", "Kafka", "События и метрики клиента")
+    Container(аналитика, "Аналитический модуль", "Python", "Аналитика клиента")
+    Container(сервис_прогнозирования_расхода_еды, "Сервис прогнозирования расхода еды", "Python", "Прогноз расхода корма клиента")
+    ContainerDb(dwh, "Data Warehouse", "PostgreSQL / ClickHouse", "Выделенная БД клиента")
+}
+
+Rel(admin, portal, "Использует", "HTTPS")
+Rel(portal, auth_service, "Аутентификация", "OIDC")
+Rel(portal, tenant_mgmt, "Управляет аккаунтом и тарифом", "HTTPS")
+Rel(portal, usage_billing, "Просматривает usage и счета", "HTTPS")
+
+Rel(agent, kafka, "Передает события и метрики", "HTTPS / Kafka bridge")
+Rel(client_systems, api_gateway, "Интеграция", "HTTPS")
+
+Rel(api_gateway, auth_service, "Проверяет токены", "HTTPS")
+Rel(kafka, dwh, "Пишет данные клиента", "ETL")
+Rel(dwh, аналитика, "Структурированные данные", "SQL")
+Rel(dwh, сервис_прогнозирования_расхода_еды, "История расхода и остатков", "SQL")
+
+Rel(аналитика, api_gateway, "Инциденты и метрики", "REST")
+Rel(сервис_прогнозирования_расхода_еды, api_gateway, "Прогнозы", "REST")
+
+Rel(usage_billing, dwh, "Читает usage клиента", "SQL")
+Rel(usage_billing, payment_ru, "Создает платежи и подписки", "HTTPS")
+@enduml
