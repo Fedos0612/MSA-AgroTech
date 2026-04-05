@@ -1,0 +1,354 @@
+@startuml Архитектура_АгроТех_Системы_C4
+
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+package "Сервер-агент" {
+
+  package "Видеомониторинг скота" {
+    class "Приемник видеопотоков" as video_recording_receiver {
+      +получитьПоток(cameraId: String)
+      +проверитьСоединение(cameraId: String)
+      +закрытьСессию(cameraId: String)
+    }
+
+    class "Мониторинг потока" as video_recording_monitor {
+      +проверитьДоступность(cameraId: String)
+      +получитьFPS(cameraId: String)
+      +получитьСтатус(cameraId: String)
+    }
+
+    class "Адаптер протоколов" as video_adapter_protocols {
+      +подключитьИсточник(url: String)
+      +преобразоватьФормат(stream)
+      +проверитьПротокол(stream)
+    }
+
+    class "Нормализатор видео" as video_adapter_normalizer {
+      +нормализоватьКадр(frame: Frame)
+      +изменитьРазмер(frame: Frame)
+      +подготовитьПакет(frames: List)
+    }
+
+    class "Кадр" as Frame {
+      +cameraId: String
+      +timestamp: DateTime
+      +payload: Binary
+    }
+  }
+
+  package "ИИ сервис" {
+    class "Прием кадров" as cv_model_input {
+      +принять(frame: Frame)
+      +собратьПакет()
+    }
+
+    class "Inference Engine" as cv_model_inference {
+      +выполнитьInference(frameBatch)
+      +загрузитьМодель(modelPath: String)
+      +получитьДетекции()
+    }
+
+    class "Диспетчер инцидентов" as cv_model_events {
+      +сформироватьИнцидент(detections: List)
+      +отправитьТревогу(incident: Incident)
+      +публиковатьМетрику(metric: TelemetryEvent)
+    }
+
+    class "Детекция" as Detection {
+      +тип: String
+      +confidence: Float
+      +bbox: String
+    }
+
+    class "Инцидент" as Incident {
+      +тип: String
+      +время: DateTime
+      +критичность: String
+      +источник: String
+    }
+  }
+
+  package "Уведомление персонала на местах" {
+    class "Дашборд инцидентов" as notification_ui_dashboard {
+      +показатьИнцидент(incident: Incident)
+      +обновитьСтатус(incidentId: String)
+      +показатьСписокИнцидентов()
+    }
+
+    class "Клиент авторизации" as notification_ui_auth {
+      +войти(login: String, password: String)
+      +обновитьТокен()
+      +выйти()
+    }
+  }
+
+  package "IoT платформа" {
+    class "Маршрутизатор телеметрии" as iot_gateway_router {
+      +маршрутизироватьСобытие(event: TelemetryEvent)
+      +маршрутизироватьТелеметрию(payload)
+      +определитьМаршрут(eventType: String)
+    }
+
+    class "Публикатор событий" as iot_gateway_publisher {
+      +опубликоватьВKafka(event: TelemetryEvent)
+      +сформироватьСообщение(event: TelemetryEvent)
+    }
+
+    class "Буфер событий" as local_buffer_store {
+      +сохранить(event: TelemetryEvent)
+      +прочитатьВсе()
+      +очиститьОтправленные()
+    }
+
+    class "Читатель буфера" as sync_manager_reader {
+      +прочитатьНакопленные()
+      +пометитьКакОбработанные(ids: List)
+    }
+
+    class "Отправитель в Kafka" as sync_manager_sender {
+      +повторноОтправить(events: List)
+      +проверитьДоставку()
+    }
+
+    class "Write API" as tsdb_write {
+      +записатьРяд(metricName: String, value: Float, ts: DateTime)
+      +записатьПакет(rows: List)
+    }
+
+    class "Событие" as TelemetryEvent {
+      +тип: String
+      +время: DateTime
+      +payload: String
+    }
+  }
+
+  package "Датчики оборудования на фермах" {
+    class "Прием телеметрии кормушек" as feeders_data_input {
+      +получитьДанные()
+      +получитьСтатусы()
+    }
+
+    class "Нормализатор данных кормушек" as feeders_data_normalizer {
+      +нормализовать(rawData)
+      +проверитьКорректность(rawData)
+    }
+
+    class "Прием телеметрии поилок" as drinkers_data_input {
+      +получитьДанные()
+      +получитьСтатусы()
+    }
+
+    class "Нормализатор данных поилок" as drinkers_data_normalizer {
+      +нормализовать(rawData)
+      +проверитьКорректность(rawData)
+    }
+
+    class "Сбор сигналов воды" as water_signals {
+      +получитьСигнал()
+      +получитьСостояние()
+    }
+
+    class "Формирование сигналов запасов еды" as feed_stock_signals {
+      +сформироватьСигнал()
+      +оценитьКритичность()
+    }
+
+    class "Оркестратор оборудования" as scada_orchestrator {
+      +применитьКоманду(command)
+      +обновитьСостояние(deviceId: String)
+      +сохранитьТелеметрию()
+    }
+
+    class "OPC UA шлюз" as scada_export {
+      +экспортироватьТелеметрию()
+      +подключитьУстройство(endpoint: String)
+    }
+  }
+
+  package "Локальный сервис восстановления" {
+    class "Монитор процессов" as local_recovery_monitor {
+      +проверитьПроцесс(serviceName: String)
+      +получитьСтатус(serviceName: String)
+    }
+
+    class "Политика перезапуска" as local_recovery_restart {
+      +перезапустить(serviceName: String)
+      +применитьПолитику(serviceName: String)
+    }
+  }
+}
+
+package "Центральный сервер" {
+
+  package "Сервис авторизации" {
+    class "Identity Provider" as auth_identity {
+      +аутентифицировать(login: String, password: String)
+      +получитьПрофиль(userId: String)
+    }
+
+    class "Token Service" as auth_tokens {
+      +выдатьТокен(userId: String)
+      +валидироватьТокен(token: String)
+      +обновитьТокен(token: String)
+    }
+  }
+
+  package "Брокер сообщений" {
+    class "Топик событий агентов" as kafka_agent_events {
+      +принятьСообщение(message)
+      +прочитатьСообщения(offset: Long)
+    }
+
+    class "Kafka Connect" as kafka_connect {
+      +доставитьВDataLake()
+      +доставитьВДWH()
+      +проверитьКоннекторы()
+    }
+  }
+
+  package "Аналитический модуль" {
+    class "Агрегатор инцидентов" as analytics_incidents {
+      +агрегировать(period: String)
+      +рассчитатьKPI()
+      +получитьСтатистику()
+    }
+
+    class "Экспорт аналитики" as analytics_export {
+      +подготовитьДляAPI()
+      +подготовитьДляBI()
+      +отправитьОтчет()
+    }
+  }
+
+  package "Сервис прогнозирования расхода еды" {
+    class "Модель прогноза" as forecast_model {
+      +спрогнозироватьРасход(history)
+      +оценитьРискИсчерпания()
+      +обучитьМодель(dataset)
+    }
+
+    class "Экспорт прогноза" as forecast_export {
+      +подготовитьПрогноз(forecast: Forecast)
+      +отправитьВAPI()
+      +отправитьВBI()
+    }
+
+    class "Прогноз" as Forecast {
+      +дата: Date
+      +объем: Float
+      +рискИсчерпания: String
+    }
+  }
+
+  package "API Gateway" {
+    class "Auth Middleware" as api_auth {
+      +проверитьТокен(token: String)
+      +проверитьПрава(userId: String)
+    }
+
+    class "Monitoring API" as api_monitoring {
+      +получитьИнциденты()
+      +получитьМетрики()
+      +получитьПрогноз()
+    }
+  }
+
+  package "BI система" {
+    class "Генератор отчетов" as bi_reports {
+      +сформироватьОтчет(reportType: String)
+      +обновитьДашборд()
+    }
+  }
+
+  package "Data Lake" {
+    class "Raw Zone" as data_lake_raw {
+      +сохранитьRaw(record)
+      +прочитатьRaw(partition: String)
+    }
+  }
+
+  package "Data Warehouse" {
+    class "Фактовые таблицы" as dwh_facts {
+      +записатьФакт(row)
+      +прочитатьФакты(filter)
+    }
+
+    class "Справочники" as dwh_dimensions {
+      +прочитатьСправочник(name: String)
+      +обновитьСправочник(name: String)
+    }
+  }
+
+  package "Сервис мониторинга и отказоустойчивости" {
+    class "Мониторинг сервисов" as ha_services {
+      +собратьМетрики()
+      +проверитьДоступность(serviceName: String)
+      +получитьАлерты()
+    }
+
+    class "Alertmanager" as ha_alerts {
+      +отправитьОповещение(alert)
+      +эскалировать(alert)
+    }
+  }
+}
+
+video_recording_receiver --> video_recording_monitor : статус потока
+video_recording_receiver --> video_adapter_protocols : видеоданные
+video_adapter_protocols --> video_adapter_normalizer : нормализованный поток
+video_adapter_normalizer --> Frame : создает
+Frame --> cv_model_input : вход
+cv_model_input --> cv_model_inference : кадры
+cv_model_inference --> Detection : возвращает
+Detection --> cv_model_events : результаты inference
+cv_model_events --> Incident : формирует
+cv_model_events --> notification_ui_dashboard : тревоги и инциденты
+
+cv_model_events --> TelemetryEvent : формирует события и метрики
+TelemetryEvent --> iot_gateway_router : MQTT
+iot_gateway_router --> iot_gateway_publisher : маршрутизация
+iot_gateway_router --> local_buffer_store : буферизация offline
+sync_manager_reader --> local_buffer_store : чтение
+sync_manager_reader --> sync_manager_sender : передача накопленных данных
+sync_manager_sender --> kafka_agent_events : повторная отправка
+iot_gateway_publisher --> kafka_agent_events : публикация
+
+feeders_data_input --> feeders_data_normalizer : телеметрия
+drinkers_data_input --> drinkers_data_normalizer : телеметрия
+feeders_data_normalizer --> scada_orchestrator : нормализованные данные
+drinkers_data_normalizer --> scada_orchestrator : нормализованные данные
+water_signals --> scada_orchestrator : сигналы
+feed_stock_signals --> scada_orchestrator : сигналы
+scada_orchestrator --> tsdb_write : временные ряды
+scada_export --> iot_gateway_router : данные оборудования
+
+local_recovery_monitor --> video_recording_monitor : контроль
+local_recovery_monitor --> cv_model_events : контроль
+local_recovery_restart --> iot_gateway_router : перезапуск
+
+kafka_agent_events --> kafka_connect : передача
+kafka_connect --> data_lake_raw : сырые данные
+kafka_connect --> dwh_facts : трансформированные данные
+
+dwh_facts --> analytics_incidents : SQL
+dwh_dimensions --> forecast_model : история расхода и остатков
+analytics_incidents --> analytics_export : агрегаты
+forecast_model --> Forecast : строит
+Forecast --> forecast_export : передает
+analytics_export --> api_monitoring : REST
+forecast_export --> api_monitoring : REST
+analytics_export --> bi_reports : ODBC
+forecast_export --> bi_reports : ODBC
+
+notification_ui_auth --> auth_identity : авторизация
+api_auth --> auth_tokens : проверка токена
+
+ha_services --> kafka_agent_events : мониторинг
+ha_services --> api_monitoring : мониторинг
+ha_services --> analytics_incidents : мониторинг
+ha_alerts --> notification_ui_dashboard : технические оповещения
+
+@enduml

@@ -1,0 +1,57 @@
+@startuml SaaS_C2_Final
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_TOP_DOWN()
+
+Person(admin, "Администратор клиента", "Управляет аккаунтом и тарифом")
+Person(dev, "Инженер интеграции клиента", "Использует API и Dev Portal")
+System_Ext(agent, "Серверы-агенты клиентов", "Edge-first обработка на фермах клиентов")
+System_Ext(client_systems, "Системы клиентов", "ERP, BI, внешние интеграции")
+System_Ext(payment_ru, "Платёжный провайдер РФ", "Платежи и подписки")
+
+System_Boundary(saas, "SaaS-платформа") {
+    Container(portal, "Портал самообслуживания", "Web", "Аккаунт, тариф, API-ключи, webhooks")
+    Container(dev_portal, "Dev Portal", "Web", "Документация, OpenAPI, quick start, sandbox")
+    Container(auth_service, "Сервис авторизации", "OAuth 2.0 / OIDC", "Аутентификация и роли")
+    Container(api_gateway, "API Gateway", "REST / HTTPS", "Tenant-aware клиентский API")
+    Container(tenant_mgmt, "Сервис управления тенантами", "Python", "Тенанты, аккаунты, лимиты")
+    Container(тарификация, "Сервис тарификации", "Python", "Тарифы, планы, лимиты, прайсинг")
+    Container(usage_metering, "Usage metering", "Python", "Сбор usage-метрик")
+    Container(billing_service, "Billing service", "Python", "Расчёт начислений и счетов")
+    Container(payment_adapter, "Платёжный адаптер", "Python", "Интеграция с российскими платёжными системами")
+    Container(kafka, "Брокер сообщений", "Kafka", "События и метрики от агентов")
+    Container(аналитика, "Аналитический модуль", "Python", "Аналитика и пользовательские метрики")
+    Container(сервис_прогнозирования_расхода_еды, "Сервис прогнозирования расхода еды", "Python", "Прогноз расхода корма")
+    ContainerDb(control_db, "Control Plane DB", "PostgreSQL", "Тенанты, тарифы, billing, API keys")
+    ContainerDb(tenant_dwh, "Tenant Data Warehouse", "PostgreSQL / ClickHouse", "Схемы per tenant")
+    ContainerDb(data_lake, "Data Lake", "S3-compatible", "Сырые данные и артефакты per tenant")
+}
+
+Rel(admin, portal, "Использует", "HTTPS")
+Rel(dev, dev_portal, "Читает документацию", "HTTPS")
+Rel(portal, auth_service, "Аутентификация", "OIDC")
+Rel(portal, tenant_mgmt, "Управляет аккаунтом", "HTTPS")
+Rel(portal, billing_service, "Просматривает счета", "HTTPS")
+Rel(dev_portal, api_gateway, "Публикует спецификации API", "Internal")
+
+Rel(agent, kafka, "Передает события и метрики", "HTTPS / Kafka bridge")
+Rel(client_systems, api_gateway, "Интеграция", "HTTPS")
+Rel(api_gateway, auth_service, "Проверяет токены", "HTTPS")
+Rel(api_gateway, tenant_mgmt, "Определяет tenant context", "Internal API")
+
+Rel(kafka, tenant_dwh, "Трансформированные tenant-данные", "ETL")
+Rel(kafka, data_lake, "Сырые tenant-данные", "Kafka Connect")
+Rel(tenant_dwh, аналитика, "Данные tenant-а", "SQL")
+Rel(tenant_dwh, сервис_прогнозирования_расхода_еды, "История расхода и остатков", "SQL")
+
+Rel(аналитика, api_gateway, "Инциденты и метрики", "REST")
+Rel(сервис_прогнозирования_расхода_еды, api_gateway, "Прогнозы", "REST")
+
+Rel(kafka, usage_metering, "Usage-события", "Stream")
+Rel(usage_metering, billing_service, "Передает usage", "Internal API")
+Rel(тарификация, billing_service, "Передает правила тарифа", "Internal API")
+Rel(billing_service, control_db, "Пишет счета и статусы", "SQL")
+Rel(tenant_mgmt, control_db, "Пишет tenant metadata", "SQL")
+Rel(тарификация, control_db, "Пишет тарифы и лимиты", "SQL")
+Rel(payment_adapter, payment_ru, "Создает платежи и подписки", "HTTPS")
+Rel(billing_service, payment_adapter, "Инициирует оплату", "Internal API")
+@enduml

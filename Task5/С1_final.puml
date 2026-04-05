@@ -1,0 +1,19 @@
+@startuml SaaS_C1_Final
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+LAYOUT_TOP_DOWN()
+
+Person(admin, "Администратор клиента", "Управляет аккаунтом, тарифом и интеграцией")
+Person(dev, "Инженер интеграции клиента", "Настраивает API и webhooks")
+
+System_Ext(agent, "Серверы-агенты клиентов", "Edge-first обработка на фермах клиентов")
+System_Ext(client_systems, "Системы клиентов", "ERP, BI, внешние системы")
+System_Ext(payment_ru, "Платёжный провайдер РФ", "Платежи и подписки")
+
+System(saas, "SaaS-платформа мониторинга скота", "Мультитенантная платформа для сбора, анализа, тарификации и интеграции")
+
+Rel(admin, saas, "Использует self-service портал", "HTTPS")
+Rel(dev, saas, "Использует Dev Portal и API", "HTTPS")
+Rel(agent, saas, "Передает события и метрики", "HTTPS / Kafka bridge")
+Rel(client_systems, saas, "Интеграция через API", "HTTPS")
+Rel(saas, payment_ru, "Создает платежи и подписки", "HTTPS")
+@enduml
